@@ -1,0 +1,102 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+import warnings
+warnings.filterwarnings('ignore')
+
+# Load the data
+# Note: You'll need to replace 'titanic.csv' with your actual data file path
+def load_data(filepath):
+    return pd.read_csv(filepath)
+
+def preprocess_data(df):
+    # Create a copy to avoid modifying original data
+    df_clean = df.copy()
+    
+    # Remove duplicates
+    df_clean = df_clean.drop_duplicates()
+    
+    # Handle missing values
+    # For numerical columns, fill with median
+    numerical_columns = df_clean.select_dtypes(include=['int64', 'float64']).columns
+    for col in numerical_columns:
+        df_clean[col] = df_clean[col].fillna(df_clean[col].median())
+    
+    # For categorical columns, fill with mode
+    categorical_columns = df_clean.select_dtypes(include=['object']).columns
+    for col in categorical_columns:
+        df_clean[col] = df_clean[col].fillna(df_clean[col].mode()[0])
+    
+    # Convert incorrect types
+    # Assuming 'Survived' should be binary (0 or 1)
+    if 'Survived' in df_clean.columns:
+        df_clean['Survived'] = df_clean['Survived'].astype(int)
+    
+    # Convert categorical variables to dummy variables
+    df_clean = pd.get_dummies(df_clean, columns=[col for col in categorical_columns])
+    
+    # Scale numerical features
+    scaler = StandardScaler()
+    df_clean[numerical_columns] = scaler.fit_transform(df_clean[numerical_columns])
+    
+    return df_clean
+
+def train_model(X, y):
+    # Split the data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Initialize and train the model
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    
+    # Make predictions
+    y_pred = model.predict(X_test)
+    
+    # Print classification report
+    print("\nModel Performance:")
+    print(classification_report(y_test, y_pred))
+    
+    return model, X_test, y_test
+
+def main():
+    # Load data
+    try:
+        df = load_data('titanic.csv')
+        print("\nOriginal Data Shape:", df.shape)
+        print("\nOriginal Data Types:")
+        print(df.dtypes)
+        
+        # Preprocess data
+        df_processed = preprocess_data(df)
+        print("\nProcessed Data Shape:", df_processed.shape)
+        print("\nProcessed Data Sample:")
+        print(df_processed.head())
+        
+        # Prepare features and target
+        if 'Survived' in df_processed.columns:
+            X = df_processed.drop('Survived', axis=1)
+            y = df_processed['Survived']
+            
+            # Train and evaluate model
+            model, X_test, y_test = train_model(X, y)
+            
+            print("\nFeature Importances:")
+            feature_importance = pd.DataFrame({
+                'feature': X.columns,
+                'importance': model.feature_importances_
+            }).sort_values('importance', ascending=False)
+            print(feature_importance)
+            
+        else:
+            print("Error: 'Survived' column not found in dataset")
+            
+    except FileNotFoundError:
+        print("Error: Data file not found. Please ensure the data file is in the correct location.")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    main()
